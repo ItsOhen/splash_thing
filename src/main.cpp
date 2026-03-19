@@ -1,5 +1,6 @@
 #include "defines.hpp"
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprutils/path/Path.hpp>
 #include <random>
 #include <ranges>
 #include <src/Compositor.hpp>
@@ -36,13 +37,12 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
   if (const std::string hash = __hyprland_api_get_hash(); hash != __hyprland_api_get_client_hash())
     throw std::runtime_error("Version mismatch");
 
-  const auto configDir = NFsUtils::getDataHome();
-  if (!configDir.has_value())
+  const auto config = Hyprutils::Path::findConfig("splashes");
+  if (!config.first.has_value())
     throw std::runtime_error("Could not get config dir");
-  const auto fn = "splashes.conf";
-  auto file = NFsUtils::readFileAsString(configDir.value() + "/" + fn);
+  auto file = NFsUtils::readFileAsString(config.first.value());
   if (!file.has_value())
-    Log::logger->log(Log::ERR, "Could not read file {}", configDir.value() + "/" + fn);
+    Log::logger->log(Log::ERR, "Could not read file {}", config.first.value());
   else {
     splashes = *file | std::views::split('\n') |
                std::views::filter([](auto &&s) { return !s.empty(); }) |
