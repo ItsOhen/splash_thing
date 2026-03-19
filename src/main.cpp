@@ -65,6 +65,11 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     return {};
   });
 
+  if (!splashes.empty()) {
+    g_pCompositor->m_currentSplash = getRandomSplash();
+    updateRendererTex();
+  }
+
   return {PLUGIN_NAME, PLUGIN_DESCRIPTION, PLUGIN_AUTHOR, PLUGIN_VERSION};
 }
 
