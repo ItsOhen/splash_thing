@@ -55,7 +55,27 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
       return {.success = false, .error = "Usage: setsplash <text>"};
     g_pCompositor->m_currentSplash = cmd;
     updateRendererTex();
-    Log::logger->log(Log::ERR, "Splash set to {}", g_pCompositor->m_currentSplash);
+    return {};
+  });
+
+  HyprlandAPI::addDispatcherV2(PHANDLE, "addsplash", [&](std::string cmd) -> SDispatchResult {
+    if (cmd.empty())
+      return {.success = false, .error = "Usage: addsplash <text>"};
+    splashes.push_back(cmd);
+    return {};
+  });
+
+  HyprlandAPI::addDispatcherV2(PHANDLE, "removesplash", [&](std::string cmd) -> SDispatchResult {
+    if (cmd.empty())
+      return {.success = false, .error = "Usage: removesplash <text>"};
+
+    const auto removed = std::erase_if(splashes, [&](const auto &s) {
+      return s.starts_with(cmd);
+    });
+
+    if (removed == 0)
+      return {.success = false, .error = std::format("No splashes started with: {}", cmd)};
+
     return {};
   });
 
