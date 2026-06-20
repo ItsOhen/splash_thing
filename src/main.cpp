@@ -1,4 +1,5 @@
 #include "defines.hpp"
+#include <config/shared/Types.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/path/Path.hpp>
 #include <random>
@@ -8,6 +9,13 @@
 #include <src/helpers/fs/FsUtils.hpp>
 #include <src/plugins/HookSystem.hpp>
 #include <src/plugins/PluginAPI.hpp>
+#include <hyprland/src/config/ConfigManager.hpp>
+
+extern "C" {
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
+}
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() {
   return HYPRLAND_API_VERSION;
@@ -26,11 +34,29 @@ std::string getRandomSplash() {
 }
 
 void updateRendererTex() {
+  static auto PSPLASHFONTSIZE = CConfigValue<Config::INTEGER>("misc:splash_font_size");
+
   for (auto &m : g_pCompositor->m_monitors) {
-    m->m_splash = g_pHyprRenderer->renderSplash([m](auto width, auto height, const auto DATA) { return g_pHyprRenderer->createTexture(width, height, DATA); }, m->m_transformedSize.y / 76,
+    int fontSize = *PSPLASHFONTSIZE > 0 ? *PSPLASHFONTSIZE : m->m_transformedSize.y / 76;
+
+    m->m_splash = g_pHyprRenderer->renderSplash([m](auto width, auto height, const auto DATA) { return g_pHyprRenderer->createTexture(width, height, DATA); }, 
+                                                fontSize,
                                                 m->m_transformedSize.x, m->m_transformedSize.y);
   }
 }
+
+#define REG_SPLASH(name, luaName, ...) \
+    HyprlandAPI::addDispatcherV2(PHANDLE, name, [](std::string cmd) -> SDispatchResult { __VA_ARGS__; return {}; }); \
+    if constexpr (requires { HyprlandAPI::addLuaFunction(nullptr, "", "", nullptr); }) { \
+        HyprlandAPI::addLuaFunction(PHANDLE, "splash_thing", luaName, [](lua_State* L) -> int { \
+            std::string cmd = ""; \
+            if (lua_isstring(L, 1)) { \
+                cmd = lua_tostring(L, 1); \
+            } \
+            __VA_ARGS__; \
+            return 0; \
+        }); \
+    }
 
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
   PHANDLE = handle;
@@ -50,40 +76,10 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
                std::ranges::to<std::vector<std::string>>();
   }
 
-  HyprlandAPI::addDispatcherV2(PHANDLE, "setsplash", [&](std::string cmd) -> SDispatchResult {
-    if (cmd.empty())
-      return {.success = false, .error = "Usage: setsplash <text>"};
-    g_pCompositor->m_currentSplash = cmd;
-    updateRendererTex();
-    return {};
-  });
-
-  HyprlandAPI::addDispatcherV2(PHANDLE, "addsplash", [&](std::string cmd) -> SDispatchResult {
-    if (cmd.empty())
-      return {.success = false, .error = "Usage: addsplash <text>"};
-    splashes.push_back(cmd);
-    return {};
-  });
-
-  HyprlandAPI::addDispatcherV2(PHANDLE, "removesplash", [&](std::string cmd) -> SDispatchResult {
-    if (cmd.empty())
-      return {.success = false, .error = "Usage: removesplash <text>"};
-
-    const auto removed = std::erase_if(splashes, [&](const auto &s) {
-      return s.starts_with(cmd);
-    });
-
-    if (removed == 0)
-      return {.success = false, .error = std::format("No splashes started with: {}", cmd)};
-
-    return {};
-  });
-
-  HyprlandAPI::addDispatcherV2(PHANDLE, "randomsplash", [&](std::string cmd) -> SDispatchResult {
-    g_pCompositor->m_currentSplash = getRandomSplash();
-    updateRendererTex();
-    return {};
-  });
+  REG_SPLASH("setsplash", "set", if(!cmd.empty()) { g_pCompositor->m_currentSplash = cmd; updateRendererTex(); })
+  REG_SPLASH("addsplash", "add", if(!cmd.empty()) splashes.push_back(cmd);)
+  REG_SPLASH("removesplash", "remove", if(!cmd.empty()) std::erase_if(splashes, [&](auto& s){ return s.starts_with(cmd); });)
+  REG_SPLASH("randomsplash", "random", g_pCompositor->m_currentSplash = getRandomSplash(); updateRendererTex();)
 
   if (!splashes.empty()) {
     g_pCompositor->m_currentSplash = getRandomSplash();
@@ -92,6 +88,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
   return {PLUGIN_NAME, PLUGIN_DESCRIPTION, PLUGIN_AUTHOR, PLUGIN_VERSION};
 }
+
+#undef REG_SPLASH
 
 APICALL EXPORT void PLUGIN_EXIT() {
 }

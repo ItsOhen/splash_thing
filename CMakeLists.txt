@@ -51,6 +51,7 @@ if(ENABLE_PROTOCOLS)
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE rt PkgConfig::hyprland)
+target_link_libraries(${PROJECT_NAME} PRIVATE lua)
 
 if(ENABLE_PROTOCOLS)
   target_link_libraries(${PROJECT_NAME} PRIVATE PkgConfig::hyprwire)
