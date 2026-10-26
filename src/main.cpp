@@ -7,6 +7,7 @@
 #include <src/Compositor.hpp>
 #include <src/SharedDefs.hpp>
 #include <src/helpers/fs/FsUtils.hpp>
+#include <src/state/MonitorState.hpp>
 #include <src/plugins/HookSystem.hpp>
 #include <src/plugins/PluginAPI.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
@@ -34,10 +35,11 @@ std::string getRandomSplash() {
 }
 
 void updateRendererTex() {
-  static auto PSPLASHFONTSIZE = CConfigValue<Config::INTEGER>("misc:splash_font_size");
+  // misc:splash_font_size was removed in Hyprland 0.56 and binding a CConfigValue to a nonexistent option aborts in local__configValuePopulate,
+  // so we always use Hyprland 0.56's own default: monitor height / 76.
 
-  for (auto &m : g_pCompositor->m_monitors) {
-    int fontSize = *PSPLASHFONTSIZE > 0 ? *PSPLASHFONTSIZE : m->m_transformedSize.y / 76;
+  for (auto &m : State::monitorState()->monitors()) {
+    int fontSize = m->m_transformedSize.y / 76;
 
     m->m_splash = g_pHyprRenderer->renderSplash([m](auto width, auto height, const auto DATA) { return g_pHyprRenderer->createTexture(width, height, DATA); }, 
                                                 fontSize,
